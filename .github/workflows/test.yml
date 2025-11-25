@@ -10,6 +10,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout code
@@ -33,5 +36,44 @@ jobs:
         run: npm ci
 
       - name: Run unit tests
-        run: npm test
+        id: test
+        run: npm test 2>&1 | tee test-output.txt
+        continue-on-error: true
+
+      - name: Read test output
+        id: test-output
+        if: always()
+        run: |
+          if [ -f test-output.txt ]; then
+            # Limit output to last 8000 characters to avoid GitHub API limits
+            tail -c 8000 test-output.txt > test-output-truncated.txt 2>/dev/null || cat test-output.txt > test-output-truncated.txt
+            echo "output<<EOF" >> $GITHUB_OUTPUT
+            cat test-output-truncated.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or update PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <!-- test-results-management -->
+            ## 🧪 Unit Test Results
+            
+            **Status:** ${{ steps.test.outcome == 'success' && '✅ Passed' || '❌ Failed' }}
+            **Service:** vehicle-management-service
+            
+            <details>
+            <summary>Test Output</summary>
+            
+            ```
+            ${{ steps.test-output.outputs.output }}
+            ```
+            
+            </details>
+            
+            ---
+            *This comment will be updated on each push to the PR.*
+          edit-mode: replace
 

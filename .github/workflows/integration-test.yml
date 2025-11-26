@@ -1,0 +1,148 @@
+name: Integration Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Start test environment
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          echo "Waiting for services to be ready..."
+
+      - name: Wait for application to be healthy
+        run: |
+          MAX_RETRIES=60
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if docker-compose -f docker-compose.test.yml exec -T app wget -q --spider http://localhost:3000/health 2>/dev/null; then
+              echo "✅ Application is healthy!"
+              break
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            
+            if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+              echo "❌ Application failed to become healthy"
+              docker-compose -f docker-compose.test.yml logs app
+              exit 1
+            fi
+            
+            echo "Attempt $RETRY_COUNT/$MAX_RETRIES - waiting for service..."
+            sleep 2
+          done
+
+      - name: Run k6 integration tests
+        id: k6
+        run: |
+          # Run k6 and capture output
+          k6 run k6/integration-tests.js --out json=k6-results.json 2>&1 | tee k6-output.txt
+          
+          # Save exit code
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+
+      - name: Parse k6 results
+        id: parse
+        if: always()
+        run: |
+          # Extract check results from output
+          if [ -f k6-output.txt ]; then
+            # Count passed and failed checks
+            CHECKS_PASSED=$(grep -oP '✓.*checks' k6-output.txt | grep -oP '\d+' | head -1 || echo "0")
+            CHECKS_FAILED=$(grep -oP '✗.*checks' k6-output.txt | grep -oP '\d+' | head -1 || echo "0")
+            
+            # Extract individual test results
+            HEALTH_CHECK=$(grep -q "Health check passed" k6-output.txt && echo "✅" || echo "❌")
+            CREATE_VEHICLE=$(grep -q "Vehicle created" k6-output.txt && echo "✅" || echo "❌")
+            GET_VEHICLE=$(grep -q "Get vehicle by ID passed" k6-output.txt && echo "✅" || echo "❌")
+            UPDATE_VEHICLE=$(grep -q "Update vehicle passed" k6-output.txt && echo "✅" || echo "❌")
+            LIST_VEHICLES=$(grep -q "List vehicles passed" k6-output.txt && echo "✅" || echo "❌")
+            DELETE_VEHICLE=$(grep -q "Delete vehicle passed" k6-output.txt && echo "✅" || echo "❌")
+            VERIFY_DELETE=$(grep -q "Delete verification passed" k6-output.txt && echo "✅" || echo "❌")
+            ALL_PASSED=$(grep -q "All integration tests passed" k6-output.txt && echo "true" || echo "false")
+            
+            # Get summary section
+            SUMMARY=$(tail -30 k6-output.txt)
+            
+            # Save to outputs
+            echo "checks_passed=$CHECKS_PASSED" >> $GITHUB_OUTPUT
+            echo "checks_failed=$CHECKS_FAILED" >> $GITHUB_OUTPUT
+            echo "health_check=$HEALTH_CHECK" >> $GITHUB_OUTPUT
+            echo "create_vehicle=$CREATE_VEHICLE" >> $GITHUB_OUTPUT
+            echo "get_vehicle=$GET_VEHICLE" >> $GITHUB_OUTPUT
+            echo "update_vehicle=$UPDATE_VEHICLE" >> $GITHUB_OUTPUT
+            echo "list_vehicles=$LIST_VEHICLES" >> $GITHUB_OUTPUT
+            echo "delete_vehicle=$DELETE_VEHICLE" >> $GITHUB_OUTPUT
+            echo "verify_delete=$VERIFY_DELETE" >> $GITHUB_OUTPUT
+            echo "all_passed=$ALL_PASSED" >> $GITHUB_OUTPUT
+            
+            # Save full output for details
+            {
+              echo "output<<EOF"
+              cat k6-output.txt
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          fi
+
+      - name: Stop test environment
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down -v --remove-orphans
+
+      - name: Create or update PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <!-- integration-test-results-management -->
+            ## 🔗 Integration Test Results - vehicle-management-service
+            
+            **Status:** ${{ steps.parse.outputs.all_passed == 'true' && '✅ All Tests Passed' || '❌ Some Tests Failed' }}
+            
+            ### Test Scenarios
+            
+            | Test | Status |
+            |------|--------|
+            | Health Check (`GET /health`) | ${{ steps.parse.outputs.health_check }} |
+            | Create Vehicle (`POST /api/vehicles`) | ${{ steps.parse.outputs.create_vehicle }} |
+            | Get Vehicle (`GET /api/vehicles/:id`) | ${{ steps.parse.outputs.get_vehicle }} |
+            | Update Vehicle (`PUT /api/vehicles/:id`) | ${{ steps.parse.outputs.update_vehicle }} |
+            | List Vehicles (`GET /api/vehicles`) | ${{ steps.parse.outputs.list_vehicles }} |
+            | Delete Vehicle (`DELETE /api/vehicles/:id`) | ${{ steps.parse.outputs.delete_vehicle }} |
+            | Verify Deletion (404 Check) | ${{ steps.parse.outputs.verify_delete }} |
+            
+            <details>
+            <summary>📋 Full Test Output</summary>
+            
+            ```
+            ${{ steps.parse.outputs.output }}
+            ```
+            
+            </details>
+            
+            ---
+            *This comment will be updated on each push to the PR.*
+          edit-mode: replace
+

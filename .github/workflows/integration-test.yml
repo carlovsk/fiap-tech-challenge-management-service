@@ -57,11 +57,12 @@ jobs:
       - name: Run k6 integration tests
         id: k6
         run: |
-          # Run k6 and capture output
+          set -o pipefail
+          # Run k6 and capture output, preserving exit code through pipe
           k6 run k6/integration-tests.js --out json=k6-results.json 2>&1 | tee k6-output.txt
-          
-          # Save exit code
-          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          K6_EXIT_CODE=${PIPESTATUS[0]}
+          echo "exit_code=$K6_EXIT_CODE" >> $GITHUB_OUTPUT
+          exit $K6_EXIT_CODE
 
       - name: Parse k6 results
         id: parse

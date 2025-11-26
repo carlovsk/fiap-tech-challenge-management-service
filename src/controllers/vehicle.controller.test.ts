@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Use vi.hoisted to ensure mocks are created before module loading
-const { mockVehicleServiceMethods } = vi.hoisted(() => {
+const { mockVehicleServiceMethods, mockSalesServiceSync } = vi.hoisted(() => {
   const mocks = {
     create: vi.fn(),
     findById: vi.fn(),
@@ -11,11 +11,18 @@ const { mockVehicleServiceMethods } = vi.hoisted(() => {
     update: vi.fn(),
     delete: vi.fn(),
   };
-  return { mockVehicleServiceMethods: mocks };
+  const syncMock = {
+    syncVehicle: vi.fn().mockResolvedValue(undefined),
+  };
+  return { mockVehicleServiceMethods: mocks, mockSalesServiceSync: syncMock };
 });
 
 vi.mock('../services/vehicle.service', () => ({
   VehicleService: vi.fn().mockImplementation(() => mockVehicleServiceMethods),
+}));
+
+vi.mock('../services/salesServiceSync', () => ({
+  SalesServiceSync: mockSalesServiceSync,
 }));
 
 import { VehicleController } from './vehicle.controller';
@@ -81,6 +88,7 @@ describe('VehicleController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(201);
       expect(mockJson).toHaveBeenCalledWith(mockVehicle);
+      expect(mockSalesServiceSync.syncVehicle).toHaveBeenCalledWith(mockVehicle);
     });
 
     it('should return 400 on validation error - missing required field', async () => {
@@ -337,6 +345,7 @@ describe('VehicleController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(200);
       expect(mockJson).toHaveBeenCalledWith(mockVehicle);
+      expect(mockSalesServiceSync.syncVehicle).toHaveBeenCalledWith(mockVehicle);
     });
 
     it('should return 400 on validation error for body - invalid year', async () => {
@@ -412,14 +421,29 @@ describe('VehicleController', () => {
 
   describe('delete', () => {
     it('should delete a vehicle successfully', async () => {
+      const mockVehicle = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        brand: 'Toyota',
+        model: 'Corolla',
+        year: 2023,
+        color: 'Blue',
+        price: new Prisma.Decimal(50000),
+        status: VehicleStatus.AVAILABLE,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
       mockRequest.params = { id: '550e8400-e29b-41d4-a716-446655440000' };
+      mockVehicleServiceMethods.findById.mockResolvedValue(mockVehicle);
       mockVehicleServiceMethods.delete.mockResolvedValue(undefined);
 
       await VehicleController.delete(mockRequest as Request, mockResponse as Response, () => {});
 
+      expect(mockVehicleServiceMethods.findById).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000');
       expect(mockVehicleServiceMethods.delete).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000');
       expect(mockStatus).toHaveBeenCalledWith(200);
       expect(mockJson).toHaveBeenCalledWith({ message: 'Vehicle deleted successfully' });
+      expect(mockSalesServiceSync.syncVehicle).toHaveBeenCalledWith(mockVehicle);
     });
 
     it('should return 400 on invalid ID format', async () => {

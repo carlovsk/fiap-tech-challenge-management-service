@@ -12,6 +12,7 @@ services:
       - NODE_ENV=development
       - PORT=3000
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/vehicledb?schema=public&sslmode=disable
+      - SALES_SERVICE_URL=http://host.docker.internal:3001
     volumes:
       - .:/app
       - /app/node_modules

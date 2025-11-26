@@ -18,18 +18,21 @@ describe('env', () => {
       ...originalEnv,
       PORT: '3000',
       NODE_ENV: 'development',
+      SALES_SERVICE_URL: 'http://localhost:3001',
     };
 
     const { env } = await import('./env');
 
     expect(env.PORT).toBe(3000);
     expect(env.NODE_ENV).toBe('development');
+    expect(env.SALES_SERVICE_URL).toBe('http://localhost:3001');
   });
 
   it('should default NODE_ENV to development when not provided', async () => {
     process.env = {
       ...originalEnv,
       PORT: '3000',
+      SALES_SERVICE_URL: 'http://localhost:3001',
     };
     delete process.env.NODE_ENV;
 
@@ -43,6 +46,7 @@ describe('env', () => {
       ...originalEnv,
       PORT: '8080',
       NODE_ENV: 'test',
+      SALES_SERVICE_URL: 'http://localhost:3001',
     };
 
     const { env } = await import('./env');
@@ -72,6 +76,7 @@ describe('env', () => {
       ...originalEnv,
       PORT: 'invalid',
       NODE_ENV: 'test',
+      SALES_SERVICE_URL: 'http://localhost:3001',
     };
 
     await expect(async () => {
@@ -87,11 +92,43 @@ describe('env', () => {
         ...originalEnv,
         PORT: '3000',
         NODE_ENV: envValue,
+        SALES_SERVICE_URL: 'http://localhost:3001',
       };
 
       vi.resetModules();
       const { env } = await import('./env');
       expect(env.NODE_ENV).toBe(envValue);
     }
+  });
+
+  it('should throw error when SALES_SERVICE_URL is missing', async () => {
+    const originalSalesServiceUrl = process.env.SALES_SERVICE_URL;
+    process.env = {
+      ...originalEnv,
+      PORT: '3000',
+      NODE_ENV: 'test',
+    };
+    delete process.env.SALES_SERVICE_URL;
+
+    await expect(async () => {
+      vi.resetModules();
+      await import('./env');
+    }).rejects.toThrow();
+
+    // Restore env
+    process.env.SALES_SERVICE_URL = originalSalesServiceUrl;
+  });
+
+  it('should throw error when SALES_SERVICE_URL is invalid URL', async () => {
+    process.env = {
+      ...originalEnv,
+      PORT: '3000',
+      NODE_ENV: 'test',
+      SALES_SERVICE_URL: 'not-a-valid-url',
+    };
+
+    await expect(async () => {
+      await import('./env');
+    }).rejects.toThrow();
   });
 });

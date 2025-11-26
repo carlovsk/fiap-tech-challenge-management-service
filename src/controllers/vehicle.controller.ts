@@ -4,6 +4,7 @@ import {
   vehicleIdParamsSchema,
   vehicleQuerySchema,
 } from '@/schemas/vehicle.schema';
+import { SalesServiceSync } from '@/services/salesServiceSync';
 import { VehicleService } from '@/services/vehicle.service';
 import { logger } from '@/utils/logger';
 import { Request, RequestHandler, Response } from 'express';
@@ -26,6 +27,12 @@ export class VehicleController {
       const validatedData = createVehicleSchema.parse(req.body);
       const vehicle = await VehicleController.vehicleService.create(validatedData);
       VehicleController.logger.info(`Vehicle created with id: ${vehicle.id}`);
+
+      // Fire-and-forget sync to sales service
+      SalesServiceSync.syncVehicle(vehicle).catch((error) => {
+        VehicleController.logger.error('Background sync failed after create', error);
+      });
+
       res.status(201).json(vehicle);
     } catch (error) {
       VehicleController.logger.error('Error creating vehicle', error);
@@ -69,6 +76,12 @@ export class VehicleController {
 
       const vehicle = await VehicleController.vehicleService.update(id, validatedData);
       VehicleController.logger.info(`Vehicle updated with id: ${id}`);
+
+      // Fire-and-forget sync to sales service
+      SalesServiceSync.syncVehicle(vehicle).catch((error) => {
+        VehicleController.logger.error('Background sync failed after update', error);
+      });
+
       res.status(200).json(vehicle);
     } catch (error) {
       VehicleController.logger.error('Error updating vehicle', error);
@@ -87,8 +100,22 @@ export class VehicleController {
   static delete: RequestHandler = async (req: Request, res: Response): Promise<void> => {
     try {
       const { id } = vehicleIdParamsSchema.parse({ id: req.params.id });
+
+      // Get vehicle before deletion for sync
+      const vehicle = await VehicleController.vehicleService.findById(id);
+      if (!vehicle) {
+        res.status(404).json({ error: 'Vehicle not found' });
+        return;
+      }
+
       await VehicleController.vehicleService.delete(id);
       VehicleController.logger.info(`Vehicle deleted with id: ${id}`);
+
+      // Fire-and-forget sync to sales service
+      SalesServiceSync.syncVehicle(vehicle).catch((error) => {
+        VehicleController.logger.error('Background sync failed after delete', error);
+      });
+
       res.status(200).json({ message: 'Vehicle deleted successfully' });
     } catch (error) {
       VehicleController.logger.error('Error deleting vehicle', error);

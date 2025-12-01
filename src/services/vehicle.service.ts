@@ -89,4 +89,25 @@ export class VehicleService {
       where: { id },
     });
   }
+
+  async sell(id: string): Promise<Vehicle> {
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { id },
+    });
+
+    if (!vehicle) {
+      throw new Error('Record to update does not exist');
+    }
+
+    if (vehicle.status === VehicleStatus.SOLD) {
+      VehicleService.logger.warn(`Vehicle ${id} is already marked as SOLD`);
+    }
+
+    return prisma.vehicle.update({
+      where: { id },
+      data: {
+        status: VehicleStatus.SOLD,
+      },
+    });
+  }
 }

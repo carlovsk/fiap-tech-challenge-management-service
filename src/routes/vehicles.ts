@@ -8,5 +8,6 @@ router.post('/api/vehicles', VehicleController.create);
 router.get('/api/vehicles/:id', VehicleController.getById);
 router.put('/api/vehicles/:id', VehicleController.update);
 router.delete('/api/vehicles/:id', VehicleController.delete);
+router.post('/api/vehicles/:id/sell', VehicleController.sell);
 
 export { router as vehicleRoutes };

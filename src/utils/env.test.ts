@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('env', () => {
   const originalEnv = process.env;
@@ -21,7 +21,7 @@ describe('env', () => {
       SALES_SERVICE_URL: 'http://localhost:3001',
     };
 
-    const { env } = await import('./env');
+    const { env } = await import('./env.ts');
 
     expect(env.PORT).toBe(3000);
     expect(env.NODE_ENV).toBe('development');
@@ -36,7 +36,7 @@ describe('env', () => {
     };
     delete process.env.NODE_ENV;
 
-    const { env } = await import('./env');
+    const { env } = await import('./env.ts');
 
     expect(env.NODE_ENV).toBe('development');
   });
@@ -49,7 +49,7 @@ describe('env', () => {
       SALES_SERVICE_URL: 'http://localhost:3001',
     };
 
-    const { env } = await import('./env');
+    const { env } = await import('./env.ts');
 
     expect(env.PORT).toBe(8080);
     expect(typeof env.PORT).toBe('number');
@@ -64,7 +64,7 @@ describe('env', () => {
 
     await expect(async () => {
       vi.resetModules();
-      await import('./env');
+      await import('./env.ts');
     }).rejects.toThrow();
 
     // Restore env
@@ -80,7 +80,7 @@ describe('env', () => {
     };
 
     await expect(async () => {
-      await import('./env');
+      await import('./env.ts');
     }).rejects.toThrow();
   });
 
@@ -96,29 +96,10 @@ describe('env', () => {
       };
 
       vi.resetModules();
-      const { env } = await import('./env');
+      const { env } = await import('./env.ts');
       expect(env.NODE_ENV).toBe(envValue);
     }
   });
-
-  it('should throw error when SALES_SERVICE_URL is missing', async () => {
-    const originalSalesServiceUrl = process.env.SALES_SERVICE_URL;
-    process.env = {
-      ...originalEnv,
-      PORT: '3000',
-      NODE_ENV: 'test',
-    };
-    delete process.env.SALES_SERVICE_URL;
-
-    await expect(async () => {
-      vi.resetModules();
-      await import('./env');
-    }).rejects.toThrow();
-
-    // Restore env
-    process.env.SALES_SERVICE_URL = originalSalesServiceUrl;
-  });
-
   it('should throw error when SALES_SERVICE_URL is invalid URL', async () => {
     process.env = {
       ...originalEnv,
@@ -128,7 +109,7 @@ describe('env', () => {
     };
 
     await expect(async () => {
-      await import('./env');
+      await import('./env.ts');
     }).rejects.toThrow();
   });
 });

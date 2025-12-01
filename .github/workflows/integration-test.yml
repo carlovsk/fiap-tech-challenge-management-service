@@ -27,17 +27,19 @@ jobs:
           sudo apt-get install k6
 
       - name: Start test environment
+        working-directory: ${{ github.workspace }}/vehicle-management-service
         run: |
-          docker compose -f infra/docker/docker-compose.test.yml up -d
+          docker compose -f infra/docker/docker-compose.test.yml --project-directory . up -d
           echo "Waiting for services to be ready..."
 
       - name: Wait for application to be healthy
+        working-directory: ${{ github.workspace }}/vehicle-management-service
         run: |
           MAX_RETRIES=60
           RETRY_COUNT=0
           
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            if docker compose -f infra/docker/docker-compose.test.yml exec -T app wget -q --spider http://localhost:3000/health 2>/dev/null; then
+            if docker compose -f infra/docker/docker-compose.test.yml --project-directory . exec -T app wget -q --spider http://localhost:3000/health 2>/dev/null; then
               echo "✅ Application is healthy!"
               break
             fi
@@ -46,7 +48,7 @@ jobs:
             
             if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
               echo "❌ Application failed to become healthy"
-              docker compose -f infra/docker/docker-compose.test.yml logs app
+              docker compose -f infra/docker/docker-compose.test.yml --project-directory . logs app
               exit 1
             fi
             
@@ -56,6 +58,7 @@ jobs:
 
       - name: Run k6 integration tests
         id: k6
+        working-directory: ${{ github.workspace }}/vehicle-management-service
         run: |
           set -o pipefail
           # Run k6 and capture output, preserving exit code through pipe
@@ -109,7 +112,8 @@ jobs:
 
       - name: Stop test environment
         if: always()
-        run: docker compose -f infra/docker/docker-compose.test.yml down -v --remove-orphans
+        working-directory: ${{ github.workspace }}/vehicle-management-service
+        run: docker compose -f infra/docker/docker-compose.test.yml --project-directory . down -v --remove-orphans
 
       - name: Create or update PR comment
         if: always() && github.event_name == 'pull_request'

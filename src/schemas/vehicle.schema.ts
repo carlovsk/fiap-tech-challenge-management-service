@@ -42,7 +42,13 @@ export const vehicleQuerySchema = z.object({
   ),
 });
 
+export const sellVehicleSchema = z.object({
+  buyerCpf: z.string().min(11, 'CPF must have at least 11 characters').max(14, 'CPF must have at most 14 characters'),
+  saleDate: z.coerce.date(),
+});
+
 export type CreateVehicleInput = z.infer<typeof createVehicleSchema>;
 export type UpdateVehicleInput = z.infer<typeof updateVehicleSchema>;
 export type VehicleIdParams = z.infer<typeof vehicleIdParamsSchema>;
 export type VehicleQueryParams = z.infer<typeof vehicleQuerySchema>;
+export type SellVehicleInput = z.infer<typeof sellVehicleSchema>;

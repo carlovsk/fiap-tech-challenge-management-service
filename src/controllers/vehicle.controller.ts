@@ -1,5 +1,6 @@
 import {
   createVehicleSchema,
+  sellVehicleSchema,
   updateVehicleSchema,
   vehicleIdParamsSchema,
   vehicleQuerySchema,
@@ -124,6 +125,43 @@ export class VehicleController {
         return;
       }
       if (error instanceof Error && error.message.includes('Record to delete does not exist')) {
+        res.status(404).json({ error: 'Vehicle not found' });
+        return;
+      }
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+
+  static sell: RequestHandler = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = vehicleIdParamsSchema.parse({ id: req.params.id });
+      const validatedData = sellVehicleSchema.parse(req.body);
+
+      const vehicle = await VehicleController.vehicleService.findById(id);
+      if (!vehicle) {
+        res.status(404).json({ error: 'Vehicle not found' });
+        return;
+      }
+
+      const updatedVehicle = await VehicleController.vehicleService.sell(id);
+      VehicleController.logger.info(`Vehicle marked as sold with id: ${id}`, {
+        buyerCpf: validatedData.buyerCpf,
+        saleDate: validatedData.saleDate,
+      });
+
+      // Fire-and-forget sync to sales service
+      SalesServiceSync.syncVehicle(updatedVehicle).catch((error) => {
+        VehicleController.logger.error('Background sync failed after sell', error);
+      });
+
+      res.status(200).json(updatedVehicle);
+    } catch (error) {
+      VehicleController.logger.error('Error marking vehicle as sold', error);
+      if (error instanceof Error && error.name === 'ZodError') {
+        res.status(400).json({ error: 'Validation error', details: error });
+        return;
+      }
+      if (error instanceof Error && error.message.includes('Record to update does not exist')) {
         res.status(404).json({ error: 'Vehicle not found' });
         return;
       }

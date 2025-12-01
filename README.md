@@ -175,6 +175,7 @@ docker-compose -f infra/docker/docker-compose.test.yml down -v
 - `GET /api/vehicles/:id` - Obtém veículo por ID
 - `PUT /api/vehicles/:id` - Atualiza veículo
 - `DELETE /api/vehicles/:id` - Deleta veículo
+- `POST /api/vehicles/:id/sell` - Marca um veículo como vendido
 
 ### Schema do Veículo
 
@@ -186,6 +187,15 @@ docker-compose -f infra/docker/docker-compose.test.yml down -v
   "color": "string (obrigatório)",
   "price": "number (positivo)",
   "status": "AVAILABLE | SOLD (padrão: AVAILABLE)"
+}
+```
+
+### Schema de Venda de Veículo
+
+```json
+{
+  "buyerCpf": "string (11-14 caracteres, obrigatório)",
+  "saleDate": "data ISO (obrigatório)"
 }
 ```
 

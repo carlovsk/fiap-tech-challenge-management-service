@@ -15,9 +15,20 @@
     "test:watch": "vitest --watch",
     "test:integration": "./scripts/run-integration-tests.sh",
     "prisma:migrate": "npx prisma migrate dev",
-    "prisma:migrate:docker": "docker-compose exec app npx prisma migrate dev",
+    "prisma:migrate:docker": "docker-compose -f infra/docker/docker-compose.yml exec app npx prisma migrate dev",
     "prisma:generate": "npx prisma generate",
-    "prisma:studio": "npx prisma studio"
+    "prisma:studio": "npx prisma studio",
+    "docker:build": "docker build -f infra/docker/Dockerfile -t vehicle-management-service:latest .",
+    "k8s:build": "npm run docker:build",
+    "k8s:load": "minikube image load vehicle-management-service:latest",
+    "k8s:deploy": "kubectl apply -f infra/k8s/",
+    "k8s:start": "npm run k8s:build && npm run k8s:load && npm run k8s:deploy",
+    "k8s:url": "minikube service vehicle-management-service --url",
+    "k8s:port-forward": "kubectl port-forward service/vehicle-management-service 3000:80",
+    "k8s:logs": "kubectl logs -f deployment/vehicle-management-service",
+    "k8s:status": "kubectl get pods,svc,deployment -l app=vehicle-management-service",
+    "k8s:restart": "kubectl rollout restart deployment/vehicle-management-service",
+    "k8s:delete": "kubectl delete -f infra/k8s/"
   },
   "eslintConfig": {
     "extends": "./.eslintrc.cjs"
@@ -37,7 +48,7 @@
     "nodemon": "^3.1.10",
     "prettier": "^3.5.1",
     "prisma": "^6.19.0",
-    "tslog": "^4.10.2",
+    "tsc-alias": "^1.8.16",
     "tsx": "^4.20.3",
     "type-fest": "^4.34.1",
     "typescript": "^5.7.3",
@@ -48,6 +59,7 @@
     "axios": "^1.13.2",
     "express": "^5.1.0",
     "lodash": "^4.17.21",
+    "tslog": "^4.10.2",
     "zod": "^4.1.12"
   },
   "license": "ISC"

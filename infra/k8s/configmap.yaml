@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vehicle-management-config
+  namespace: default
+data:
+  NODE_ENV: "production"
+  SALES_SERVICE_URL: "http://vehicle-sales-service:80"
+  PORT: "3000"
+
